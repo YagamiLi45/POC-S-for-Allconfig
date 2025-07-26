@@ -1,3 +1,4 @@
+// service/impl/AuthServiceImpl.java
 package com.example.demo.serviceImpl;
 
 import com.example.demo.dto.LoginRequest;
@@ -10,6 +11,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.util.Optional;
+import java.util.UUID;
 
 @Service
 public class AuthServiceImpl implements AuthService {
@@ -17,7 +19,7 @@ public class AuthServiceImpl implements AuthService {
     @Autowired
     private UserRepository userRepository;
 
-    private BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
+    private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
     @Override
     public String register(RegisterRequest request) {
@@ -26,6 +28,7 @@ public class AuthServiceImpl implements AuthService {
         }
 
         User user = User.builder()
+                .id(UUID.randomUUID())
                 .username(request.getUsername())
                 .email(request.getEmail())
                 .password(passwordEncoder.encode(request.getPassword()))

@@ -1,25 +1,24 @@
+// model/User.java
 package com.example.demo.model;
 
-import jakarta.persistence.*;
 import lombok.*;
+import org.springframework.data.cassandra.core.mapping.PrimaryKey;
+import org.springframework.data.cassandra.core.mapping.Table;
 
-@Entity
+import java.util.UUID;
+
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
-@Table(name = "users")
+@Table("users") // Cassandra table
 public class User {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    @PrimaryKey
+    private UUID id;
 
     private String username;
-
-    @Column(unique = true)
     private String email;
-
     private String password;
     private String firstName;
     private String lastName;
