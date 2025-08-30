@@ -21,8 +21,8 @@ pipeline {
         stage('Run Application') {
             steps {
                 withCredentials([
-                    string(credentialsId: 'pinecone-key', variable: 'PINECONE_API_KEY'),
-                    string(credentialsId: 'gemini-key', variable: 'GEMINI_API_KEY')
+                    string(credentialsId: 'PINECONE_API_KEY', variable: 'PINECONE_API_KEY'),
+                    string(credentialsId: 'GEMINI_API_KEY', variable: 'GEMINI_API_KEY')
                 ]) {
                     echo "Running application with Pinecone + Gemini keys..."
                     bat """
