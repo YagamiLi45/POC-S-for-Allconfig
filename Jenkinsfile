@@ -10,14 +10,14 @@ pipeline {
     stages {
         stage('Checkout') {
             steps {
-                echo "📥 Checking out source code..."
+                echo "Checking out source code..."
                 checkout scm
             }
         }
 
         stage('Setup Python') {
             steps {
-                echo "🐍 Setting up Python environment..."
+                echo "Setting up Python environment..."
                 sh """
                     rm -rf ${VENV}
                     python3 -m venv ${VENV}
@@ -30,7 +30,7 @@ pipeline {
 
         stage('Run Application') {
             steps {
-                echo "▶ Running your app..."
+                echo "Running your app..."
                 sh """
                     . ${VENV}/bin/activate
                     python3 app.py
@@ -41,14 +41,14 @@ pipeline {
 
     post {
         always {
-            echo "🧹 Cleaning up..."
+            echo "Cleaning up..."
             sh "rm -rf ${VENV}"
         }
         success {
-            echo "✅ Pipeline completed successfully!"
+            echo "Pipeline completed successfully!"
         }
         failure {
-            echo "❌ Pipeline failed. Check logs."
+            echo "Pipeline failed. Check logs."
         }
     }
 }
