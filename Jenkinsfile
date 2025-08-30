@@ -3,8 +3,7 @@ pipeline {
 
     environment {
         VENV = "venv"
-        GEMINI_API_KEY = credentials('GEMINI_API_KEY')
-        PINECONE_API_KEY = credentials('PINECONE_API_KEY')
+        PYTHON = "C:\\Users\\mtamb\\AppData\\Local\\Programs\\Python\\Python311\\python.exe"
     }
 
     stages {
@@ -19,21 +18,21 @@ pipeline {
             steps {
                 echo "Setting up Python environment..."
                 bat """
-                    rmdir /S /Q %VENV%
-                    python -m venv %VENV%
+                    if exist %VENV% rmdir /S /Q %VENV%
+                    "%PYTHON%" -m venv %VENV%
                     call %VENV%\\Scripts\\activate
-                    pip install --upgrade pip
-                    pip install -r requirements.txt
+                    %VENV%\\Scripts\\pip install --upgrade pip
+                    %VENV%\\Scripts\\pip install -r requirements.txt
                 """
             }
         }
 
         stage('Run Application') {
             steps {
-                echo "Running your app..."
+                echo "Running application..."
                 bat """
                     call %VENV%\\Scripts\\activate
-                    python app.py
+                    "%PYTHON%" app.py
                 """
             }
         }
@@ -42,7 +41,9 @@ pipeline {
     post {
         always {
             echo "Cleaning up..."
-            bat "rmdir /S /Q %VENV%"
+            bat """
+                if exist %VENV% rmdir /S /Q %VENV%
+            """
         }
         success {
             echo "Pipeline completed successfully!"
