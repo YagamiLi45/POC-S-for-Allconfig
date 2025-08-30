@@ -31,8 +31,7 @@ pipeline {
             steps {
                 echo "Running application..."
                 bat """
-                    call %VENV%\\Scripts\\activate
-                    "%PYTHON%" app.py
+                    %VENV%\\Scripts\\python.exe app.py
                 """
             }
         }
