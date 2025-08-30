@@ -4,6 +4,7 @@ pipeline {
     environment {
         VENV = "venv"
         PYTHON = "C:\\Users\\mtamb\\AppData\\Local\\Programs\\Python\\Python311\\python.exe"
+        STREAMLIT_BROWSER_GATHER_USAGE_STATS = "false"   // disable onboarding/email prompt
     }
 
     stages {
@@ -23,12 +24,12 @@ pipeline {
                     string(credentialsId: 'PINECONE_API_KEY', variable: 'PINECONE_API_KEY'),
                     string(credentialsId: 'GEMINI_API_KEY', variable: 'GEMINI_API_KEY')
                 ]) {
-                    echo "Running application with Pinecone + Gemini keys..."
+                    echo "Starting Streamlit app in background..."
                     bat """
                         set PINECONE_API_KEY=%PINECONE_API_KEY%
                         set GEMINI_API_KEY=%GEMINI_API_KEY%
                         set MODE=web
-                        %VENV%\\Scripts\\streamlit run app.py --server.port 8501
+                        start /B %VENV%\\Scripts\\streamlit run app.py --server.port 8501 --server.headless true
                     """
                 }
             }
