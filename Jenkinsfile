@@ -6,49 +6,32 @@ pipeline {
         PYTHON = "C:\\Users\\mtamb\\AppData\\Local\\Programs\\Python\\Python311\\python.exe"
     }
 
-    stages {
-        stage('Checkout') {
-            steps {
-                echo "Checking out source code..."
-                checkout scm
-            }
-        }
 
+    stages {
         stage('Setup Python') {
             steps {
-                echo "Setting up Python environment..."
                 bat """
-                    if exist %VENV% rmdir /S /Q %VENV%
-                    "%PYTHON%" -m venv %VENV%
-                    call %VENV%\\Scripts\\activate
-                    %VENV%\\Scripts\\pip install --upgrade pip
-                    %VENV%\\Scripts\\pip install -r requirements.txt
+                    %PYTHON% -m venv %VENV%
+                    %VENV%\\Scripts\\python.exe -m pip install --upgrade pip
+                    %VENV%\\Scripts\\python.exe -m pip install -r requirements.txt
                 """
             }
         }
 
         stage('Run Application') {
             steps {
-                echo "Running application..."
-                bat """
-                    %VENV%\\Scripts\\python.exe app.py
-                """
+                withCredentials([
+                    string(credentialsId: 'pinecone-key', variable: 'PINECONE_API_KEY'),
+                    string(credentialsId: 'gemini-key', variable: 'GEMINI_API_KEY')
+                ]) {
+                    echo "Running application with Pinecone + Gemini keys..."
+                    bat """
+                        set PINECONE_API_KEY=%PINECONE_API_KEY%
+                        set GEMINI_API_KEY=%GEMINI_API_KEY%
+                        %VENV%\\Scripts\\python.exe app.py
+                    """
+                }
             }
-        }
-    }
-
-    post {
-        always {
-            echo "Cleaning up..."
-            bat """
-                if exist %VENV% rmdir /S /Q %VENV%
-            """
-        }
-        success {
-            echo "Pipeline completed successfully!"
-        }
-        failure {
-            echo "Pipeline failed. Check logs."
         }
     }
 }
