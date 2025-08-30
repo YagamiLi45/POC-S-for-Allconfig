@@ -6,7 +6,6 @@ pipeline {
         PYTHON = "C:\\Users\\mtamb\\AppData\\Local\\Programs\\Python\\Python311\\python.exe"
     }
 
-
     stages {
         stage('Setup Python') {
             steps {
@@ -28,7 +27,8 @@ pipeline {
                     bat """
                         set PINECONE_API_KEY=%PINECONE_API_KEY%
                         set GEMINI_API_KEY=%GEMINI_API_KEY%
-                        %VENV%\\Scripts\\python.exe app.py
+                        set MODE=web
+                        %VENV%\\Scripts\\streamlit run app.py --server.port 8501
                     """
                 }
             }
