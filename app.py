@@ -47,10 +47,14 @@ def get_console_output():
 
 
 def extract_errors(log_text):
-    """Extract only error/warning/failure lines."""
+    """Extract relevant error/warning/failure/exception lines from Jenkins logs."""
     errors = []
     for line in log_text.splitlines():
-        if "ERROR" in line or "FAILURE" in line or "WARNING" in line:
+        if any(keyword in line for keyword in ["ERROR", "FAILURE", "WARNING"]):
+            errors.append(line)
+        elif "Exception" in line or "Traceback" in line:
+            errors.append(line)
+        elif line.strip().startswith("at "):  # capture Java stack trace lines
             errors.append(line)
     return errors
 
