@@ -108,7 +108,7 @@ def run_streamlit():
     st.title("🚀 Jenkins Error Resolver (Console + Pinecone + Gemini)")
 
     if st.button("Fetch & Resolve Jenkins Errors"):
-        log_text = get_console_output1()          # Fetch Jenkins console output
+        log_text = get_console_output()          # Fetch Jenkins console output
 
         if log_text.startswith("Failed to fetch"):
             st.error(log_text)
