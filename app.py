@@ -3,6 +3,8 @@ import streamlit as st
 from dotenv import load_dotenv
 import google.generativeai as genai
 from pinecone import Pinecone, ServerlessSpec
+import requests
+from requests.auth import HTTPBasicAuth
 
 load_dotenv()
 
@@ -13,6 +15,12 @@ genai.configure(api_key=gemini_key)
 # Configure Pinecone
 pinecone_key = os.getenv("PINECONE_API_KEY")
 pc = Pinecone(api_key=pinecone_key)
+
+# Configure Jenkins
+jenkins_url = os.getenv("JENKINS_URL")
+job_name = os.getenv("JOB_NAME")
+jenkins_user = os.getenv("JENKINS_USER")
+jenkins_api_token = os.getenv("JENKINS_API_TOKEN")
 
 INDEX_NAME = "error-store"
 
@@ -28,7 +36,25 @@ if INDEX_NAME not in [idx.name for idx in pc.list_indexes()]:
 index = pc.Index(INDEX_NAME)
 
 
-# === Utility Functions ===
+def get_console_output():
+    """Fetch Jenkins console output from the last build."""
+    url = f"{jenkins_url}/job/{job_name}/lastBuild/consoleText"
+    response = requests.get(url, auth=HTTPBasicAuth(jenkins_user, jenkins_api_token))
+    if response.status_code == 200:
+        return response.text
+    else:
+        return f"Failed to fetch logs: {response.status_code}"
+
+
+def extract_errors(log_text):
+    """Extract only error/warning/failure lines."""
+    errors = []
+    for line in log_text.splitlines():
+        if "ERROR" in line or "FAILURE" in line or "WARNING" in line:
+            errors.append(line)
+    return errors
+
+
 def chunk_text(text, chunk_size=200):
     words = text.split()
     return [" ".join(words[i:i + chunk_size]) for i in range(0, len(words), chunk_size)]
@@ -79,19 +105,37 @@ def run_cli():
 
 # === Streamlit Web UI ===
 def run_streamlit():
-    st.title("🚀 Jenkins Error Resolver (Pinecone + Gemini)")
-    error_message = st.text_area("Enter Jenkins build error:", "")
-    if st.button("Resolve Error"):
-        if error_message.strip():
-            matches = retrieve_solution(error_message)
-            if matches:
-                st.subheader("✅ Found similar solution(s) in Pinecone DB:")
-                for text, score in matches:
-                    st.markdown(f"**Score:** {score:.3f}\n\n{text}\n\n---")
+    st.title("🚀 Jenkins Error Resolver (Console + Pinecone + Gemini)")
+
+    if st.button("Fetch & Resolve Jenkins Errors"):
+        log_text = get_console_output()          # Fetch Jenkins console output
+
+        if log_text.startswith("Failed to fetch"):
+            st.error(log_text)
+        else:
+            extracted = extract_errors(log_text) # Fetch and extract errors
+            print("Extracted Errors:\n", extracted)
+
+            if not extracted:
+                st.info("✅ No errors/warnings/failures found in Jenkins logs.")
             else:
-                st.subheader("🤖 No similar solution found. Generating via Gemini AI...")
-                solution = generate_solution_gemini(error_message)
-                st.write(solution)
+                st.subheader("📋 Extracted Errors/Warnings/Failures:")
+                error_block = "\n".join(extracted)
+                st.code(error_block)
+
+                st.subheader("🔍 Resolving...")
+
+                # Query Pinecone with the entire error block
+                matches = retrieve_solution(error_block)
+
+                if matches:
+                    st.success("✅ Found similar solution(s) in Pinecone DB:")
+                    for text, score in matches:
+                        st.markdown(f"- **Score:** {score:.3f}\n{text}\n\n---")
+                else:
+                    st.warning("🤖 No similar solution found. Generating via Gemini...")
+                    solution = generate_solution_gemini(error_block)
+                    st.write(solution)
 
 
 if __name__ == "__main__":
