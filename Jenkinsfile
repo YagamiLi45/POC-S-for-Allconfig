@@ -21,7 +21,7 @@ pipeline {
         stage('Force Fail') {
             steps {
                 // This will always fail the build
-                error("❌ Intentional failure for testing Jenkins error resolver!")
+                error("Intentional failure for testing Jenkins error resolver!")
             }
         }
 
