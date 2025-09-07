@@ -46,22 +46,41 @@ def get_console_output():
         return f"Failed to fetch logs: {response.status_code}"
 
 
-def extract_errors(log_text):
-    """Extract relevant error/warning/failure/exception lines from Jenkins logs."""
+def extract_errors(log_text, fallback_lines=20):
+    """
+    Extract relevant error/warning/failure/exception lines from Jenkins logs.
+    If nothing is found, fallback to the last `fallback_lines` of the log.
+    """
     errors = []
+
+    # First pass: normal error/warning/exception detection
     for line in log_text.splitlines():
-        if any(keyword in line for keyword in ["ERROR", "FAILURE", "WARNING"]):
-            errors.append(line)
-        elif "Exception" in line or "Traceback" in line:
-            errors.append(line)
-        elif line.strip().startswith("at "):  # capture Java stack trace lines
-            errors.append(line)
+        clean_line = line.strip()
+        upper_line = clean_line.upper()
+        if any(keyword in upper_line for keyword in ["ERROR", "FAILURE", "WARNING"]):
+            errors.append(clean_line)
+        elif "EXCEPTION" in upper_line or "TRACEBACK" in upper_line:
+            errors.append(clean_line)
+        elif clean_line.startswith("at "):  # Java stack trace
+            errors.append(clean_line)
+
+    # Second pass: explicitly catch lines starting with ERROR:
+    for line in log_text.splitlines():
+        clean_line = line.strip()
+        if clean_line.upper().startswith("ERROR:") and clean_line not in errors:
+            errors.append(clean_line)
 
     # Catch final Jenkins build status if nothing else
-    if "Finished: FAILURE" in log_text and not errors:
+    if "FINISHED: FAILURE" in log_text.upper() and not errors:
         errors.append("Build failed with unknown error. Check Jenkins console for details.")
 
+    # Fallback: last N lines if no errors found
+    if not errors:
+        log_lines = log_text.splitlines()
+        errors = log_lines[-fallback_lines:]
+
     return errors
+
 
 
 
