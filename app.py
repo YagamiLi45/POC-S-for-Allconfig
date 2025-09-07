@@ -38,7 +38,7 @@ index = pc.Index(INDEX_NAME)
 
 def get_console_output():
     """Fetch Jenkins console output from the last build."""
-    url = f"{jenkins_url}/job/{job_name}/lastBuild/consoleText"
+    url = f"{jenkins_url}/job/{job_name}/lastBuild/consoleText"   # Jenkins API endpoint for console text
     response = requests.get(url, auth=HTTPBasicAuth(jenkins_user, jenkins_api_token))
     if response.status_code == 200:
         return response.text
@@ -89,61 +89,68 @@ def generate_solution_gemini(error_message):
     return response.text
 
 
-# === CLI Mode ===
+# --- CLI Mode (used in Jenkins) ---
 def run_cli():
-    print("=== Jenkins Error Resolver Retriever ===")
-    while True:
-        error_message = input("\nEnter Jenkins build error (or 'exit' to quit): ")
-        if error_message.lower() in ["exit", "quit"]:
-            break
-        matches = retrieve_solution(error_message)
-        if matches:
-            print("\nFound similar solution(s) in Pinecone DB:")
-            for text, score in matches:
-                print(f"Score: {score:.3f}\nSolution: {text}\n")
-        else:
-            print("\nNo similar solution found. Generating via Gemini AI...")
-            solution = generate_solution_gemini(error_message)
-            print("Generated Solution:\n", solution)
+    print("=== Jenkins Error Resolver (CLI Mode) ===")
+
+    log_text = get_console_output()
+    if log_text.startswith("Failed to fetch"):
+        print(log_text)
+        return
+
+    extracted = extract_errors(log_text)
+    if not extracted:
+        print("✅ No errors found in Jenkins logs.")
+        return
+
+    error_block = "\n".join(extracted)
+    matches = retrieve_solution(error_block)
+
+    if matches:
+        print("\n✅ Found similar solution(s) in Pinecone DB:")
+        for text, score in matches:
+            print(f"Score: {score:.3f}\nSolution: {text}\n")
+    else:
+        print("\n🤖 No solution found in Pinecone. Generating with Gemini...")
+        solution = generate_solution_gemini(error_block)
+        print("\nGenerated Solution:\n", solution)
 
 
-# === Streamlit Web UI ===
+# --- Web Mode (for developers, Streamlit UI) ---
 def run_streamlit():
-    st.title("🚀 Jenkins Error Resolver (Console + Pinecone + Gemini)")
+    st.title("🚀 Jenkins Error Resolver (Web UI)")
 
     if st.button("Fetch & Resolve Jenkins Errors"):
-        log_text = get_console_output()          # Fetch Jenkins console output
-
+        log_text = get_console_output()
         if log_text.startswith("Failed to fetch"):
             st.error(log_text)
+            return
+
+        extracted = extract_errors(log_text)
+        if not extracted:
+            st.info("✅ No errors/warnings/failures found in Jenkins logs.")
+            return
+
+        st.subheader("📋 Extracted Errors/Warnings/Failures:")
+        error_block = "\n".join(extracted)
+        st.code(error_block)
+
+        st.subheader("🔍 Resolving...")
+        matches = retrieve_solution(error_block)
+
+        if matches:
+            st.success("✅ Found similar solution(s) in Pinecone DB:")
+            for text, score in matches:
+                st.markdown(f"- **Score:** {score:.3f}\n{text}\n\n---")
         else:
-            extracted = extract_errors(log_text) # Fetch and extract errors
-            print("Extracted Errors:\n", extracted)
-
-            if not extracted:
-                st.info("✅ No errors/warnings/failures found in Jenkins logs.")
-            else:
-                st.subheader("📋 Extracted Errors/Warnings/Failures:")
-                error_block = "\n".join(extracted)
-                st.code(error_block)
-
-                st.subheader("🔍 Resolving...")
-
-                # Query Pinecone with the entire error block
-                matches = retrieve_solution(error_block)
-
-                if matches:
-                    st.success("✅ Found similar solution(s) in Pinecone DB:")
-                    for text, score in matches:
-                        st.markdown(f"- **Score:** {score:.3f}\n{text}\n\n---")
-                else:
-                    st.warning("🤖 No similar solution found. Generating via Gemini...")
-                    solution = generate_solution_gemini(error_block)
-                    st.write(solution)
+            st.warning("🤖 No similar solution found. Generating via Gemini...")
+            solution = generate_solution_gemini(error_block)
+            st.write(solution)
 
 
+# --- Entry Point ---
 if __name__ == "__main__":
-    mode = os.getenv("MODE", "web")  # default CLI, set MODE=web for streamlit
+    mode = os.getenv("MODE", "cli")  # default = cli (Jenkins), set MODE=web for Streamlit
     if mode == "web":
         run_streamlit()
     else:
