@@ -56,7 +56,13 @@ def extract_errors(log_text):
             errors.append(line)
         elif line.strip().startswith("at "):  # capture Java stack trace lines
             errors.append(line)
+
+    # Catch final Jenkins build status if nothing else
+    if "Finished: FAILURE" in log_text and not errors:
+        errors.append("Build failed with unknown error. Check Jenkins console for details.")
+
     return errors
+
 
 
 def chunk_text(text, chunk_size=200):
