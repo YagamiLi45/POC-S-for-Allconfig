@@ -100,18 +100,18 @@ def run_cli():
 
     extracted = extract_errors(log_text)
     if not extracted:
-        print("✅ No errors found in Jenkins logs.")
+        print("No errors found in Jenkins logs.")
         return
 
     error_block = "\n".join(extracted)
     matches = retrieve_solution(error_block)
 
     if matches:
-        print("\n✅ Found similar solution(s) in Pinecone DB:")
+        print("\n Found similar solution(s) in Pinecone DB:")
         for text, score in matches:
             print(f"Score: {score:.3f}\nSolution: {text}\n")
     else:
-        print("\n🤖 No solution found in Pinecone. Generating with Gemini...")
+        print("\n No solution found in Pinecone. Generating with Gemini...")
         solution = generate_solution_gemini(error_block)
         print("\nGenerated Solution:\n", solution)
 
