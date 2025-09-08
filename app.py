@@ -1,4 +1,5 @@
 import os
+import sys
 import streamlit as st
 from dotenv import load_dotenv
 import google.generativeai as genai
@@ -39,7 +40,7 @@ index = pc.Index(INDEX_NAME)
 
 def get_console_output():
     """Fetch Jenkins console output from the last build."""
-    url = f"{jenkins_url}/job/{job_name}/lastBuild/consoleText"   # Jenkins API endpoint for console text
+    url = f"{jenkins_url}/job/{job_name}/lastBuild/consoleText"   # FIXED: lastBuild
     response = requests.get(url, auth=HTTPBasicAuth(jenkins_user, jenkins_api_token))
     if response.status_code == 200:
         return response.text
@@ -47,19 +48,14 @@ def get_console_output():
         return f"Failed to fetch logs: {response.status_code}"
 
 
-
 def extract_errors(log_text, fallback_lines=20):
     """
     Extract error/warning/failure/exception lines from Jenkins logs.
     Returns key error lines or falls back to last `fallback_lines`.
     """
-
     errors = set()  # avoid duplicates
-
-    # Normalize newlines and split
     log_lines = log_text.splitlines()
 
-    # Regex patterns for common Jenkins/Java/Python build errors
     patterns = [
         r"\bERROR\b",
         r"\bFAILURE\b",
@@ -78,18 +74,13 @@ def extract_errors(log_text, fallback_lines=20):
         if combined.search(line):
             errors.add(line.strip())
 
-    # Special case: Jenkins build result
     if "FINISHED: FAILURE" in log_text.upper() and not errors:
         errors.add("Build failed with unknown error. Check Jenkins console for details.")
 
-    # Fallback if still nothing
     if not errors:
         return log_lines[-fallback_lines:]
 
     return list(errors)
-
-
-
 
 
 def chunk_text(text, chunk_size=200):
@@ -124,29 +115,33 @@ def generate_solution_gemini(error_message):
 
 # --- CLI Mode (used in Jenkins) ---
 def run_cli():
-    print("=== Jenkins Error Resolver (CLI Mode) ===")
+    print("=== Jenkins Error Resolver (CLI Mode) ===", flush=True)
 
     log_text = get_console_output()
     if log_text.startswith("Failed to fetch"):
-        print(log_text)
+        print(log_text, flush=True)
         return
 
     extracted = extract_errors(log_text)
     if not extracted:
-        print("No errors found in Jenkins logs.")
+        print("No errors found in Jenkins logs.", flush=True)
         return
 
     error_block = "\n".join(extracted)
+    print("📋 Extracted Errors:\n", error_block, flush=True)
+
     matches = retrieve_solution(error_block)
 
     if matches:
-        print("\n Found similar solution(s) in Pinecone DB:")
+        print("\n✅ Found similar solution(s) in Pinecone DB:", flush=True)
         for text, score in matches:
-            print(f"Score: {score:.3f}\nSolution: {text}\n")
+            print(f"Score: {score:.3f}\nSolution: {text}\n", flush=True)
     else:
-        print("\n No solution found in Pinecone. Generating with Gemini...")
+        print("\n🤖 No solution found in Pinecone. Generating with Gemini...", flush=True)
         solution = generate_solution_gemini(error_block)
-        print("\nGenerated Solution:\n", solution)
+        print("\n✅ Gemini Suggested Fix:\n", solution, flush=True)
+
+    sys.stdout.flush()
 
 
 # --- Web Mode (for developers, Streamlit UI) ---
@@ -183,7 +178,7 @@ def run_streamlit():
 
 # --- Entry Point ---
 if __name__ == "__main__":
-    mode = os.getenv("MODE", "web")  # default = cli (Jenkins), set MODE=web for Streamlit
+    mode = os.getenv("MODE", "web")  # default = web (Streamlit), set MODE=cli for Jenkins
     if mode == "web":
         run_streamlit()
     else:
