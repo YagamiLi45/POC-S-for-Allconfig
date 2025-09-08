@@ -132,7 +132,7 @@ def store_solution_in_pinecone(error_block, solution):
             }
         ]
     )
-    print(f"\n✅ Solution saved/updated in Pinecone with ID {item_id}.", flush=True)
+    print(f"\n Solution saved/updated in Pinecone with ID {item_id}.", flush=True)
 
 
 # --- CLI Mode (used in Jenkins) ---
@@ -156,11 +156,11 @@ def run_cli():
     matches = retrieve_solution(error_block)
 
     if matches:
-        print("\n✅ Found similar solution(s) in Pinecone DB:", flush=True)
+        print("\n Found similar solution(s) in Pinecone DB:", flush=True)
         for text, score in matches:
             print(f"Score: {score:.3f}\nSolution: {text}\n", flush=True)
     else:
-        print("\n🤖 No solution found in Pinecone. Generating with Gemini...", flush=True)
+        print("\n No solution found in Pinecone. Generating with Gemini...", flush=True)
         solution = generate_solution_gemini(error_block)
         print("\nGemini Suggested Fix:\n", solution, flush=True)
 
