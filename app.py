@@ -128,18 +128,18 @@ def run_cli():
         return
 
     error_block = "\n".join(extracted)
-    print("📋 Extracted Errors:\n", error_block, flush=True)
+    print("Extracted Errors:\n", error_block, flush=True)
 
     matches = retrieve_solution(error_block)
 
     if matches:
-        print("\n✅ Found similar solution(s) in Pinecone DB:", flush=True)
+        print("\n Found similar solution(s) in Pinecone DB:", flush=True)
         for text, score in matches:
             print(f"Score: {score:.3f}\nSolution: {text}\n", flush=True)
     else:
-        print("\n🤖 No solution found in Pinecone. Generating with Gemini...", flush=True)
+        print("\n No solution found in Pinecone. Generating with Gemini...", flush=True)
         solution = generate_solution_gemini(error_block)
-        print("\n✅ Gemini Suggested Fix:\n", solution, flush=True)
+        print("\n Gemini Suggested Fix:\n", solution, flush=True)
 
     sys.stdout.flush()
 
