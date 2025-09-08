@@ -7,6 +7,8 @@ from pinecone import Pinecone, ServerlessSpec
 import requests
 from requests.auth import HTTPBasicAuth
 import re
+import time
+import hashlib
 
 load_dotenv()
 
@@ -112,6 +114,26 @@ def generate_solution_gemini(error_message):
     response = model.generate_content(contents=error_message)
     return response.text
 
+# --- Function to store solution in Pinecone ---
+def store_solution_in_pinecone(error_block, solution):
+    """
+    Stores the error and its solution in Pinecone.
+    If the error already exists, it updates the solution.
+    """
+    item_id = hashlib.md5(error_block.encode("utf-8")).hexdigest()
+    embedding = embed_query(error_block)
+
+    index.upsert(
+        items=[
+            {
+                "id": item_id,
+                "values": embedding,
+                "metadata": {"text": solution, "error": error_block}
+            }
+        ]
+    )
+    print(f"\n✅ Solution saved/updated in Pinecone with ID {item_id}.", flush=True)
+
 
 # --- CLI Mode (used in Jenkins) ---
 def run_cli():
@@ -130,21 +152,25 @@ def run_cli():
     error_block = "\n".join(extracted)
     print("Extracted Errors:\n", error_block, flush=True)
 
+    # Search Pinecone for similar errors
     matches = retrieve_solution(error_block)
 
     if matches:
-        print("\n Found similar solution(s) in Pinecone DB:", flush=True)
+        print("\n✅ Found similar solution(s) in Pinecone DB:", flush=True)
         for text, score in matches:
             print(f"Score: {score:.3f}\nSolution: {text}\n", flush=True)
     else:
-        print("\n No solution found in Pinecone. Generating with Gemini...", flush=True)
+        print("\n🤖 No solution found in Pinecone. Generating with Gemini...", flush=True)
         solution = generate_solution_gemini(error_block)
-        print("\n Gemini Suggested Fix:\n", solution, flush=True)
+        print("\nGemini Suggested Fix:\n", solution, flush=True)
+
+        # Store in Pinecone using the new function
+        store_solution_in_pinecone(error_block, solution)
 
     sys.stdout.flush()
 
 
-# --- Web Mode (for developers, Streamlit UI) ---
+# --- Web Mode (Streamlit UI) ---
 def run_streamlit():
     st.title("🚀 Jenkins Error Resolver (Web UI)")
 
@@ -174,6 +200,11 @@ def run_streamlit():
             st.warning("🤖 No similar solution found. Generating via Gemini...")
             solution = generate_solution_gemini(error_block)
             st.write(solution)
+
+            # Store in Pinecone using the new function
+            store_solution_in_pinecone(error_block, solution)
+            st.success("✅ Solution saved/updated in Pinecone for future use.")
+
 
 
 # --- Entry Point ---
