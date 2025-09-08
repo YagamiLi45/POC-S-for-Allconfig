@@ -5,6 +5,7 @@ import google.generativeai as genai
 from pinecone import Pinecone, ServerlessSpec
 import requests
 from requests.auth import HTTPBasicAuth
+import re
 
 load_dotenv()
 
@@ -46,40 +47,47 @@ def get_console_output():
         return f"Failed to fetch logs: {response.status_code}"
 
 
+
 def extract_errors(log_text, fallback_lines=20):
     """
-    Extract relevant error/warning/failure/exception lines from Jenkins logs.
-    If nothing is found, fallback to the last `fallback_lines` of the log.
+    Extract error/warning/failure/exception lines from Jenkins logs.
+    Returns key error lines or falls back to last `fallback_lines`.
     """
-    errors = []
 
-    # First pass: normal error/warning/exception detection
-    for line in log_text.splitlines():
-        clean_line = line.strip()
-        upper_line = clean_line.upper()
-        if any(keyword in upper_line for keyword in ["ERROR", "FAILURE", "WARNING"]):
-            errors.append(clean_line)
-        elif "EXCEPTION" in upper_line or "TRACEBACK" in upper_line:
-            errors.append(clean_line)
-        elif clean_line.startswith("at "):  # Java stack trace
-            errors.append(clean_line)
+    errors = set()  # avoid duplicates
 
-    # Second pass: explicitly catch lines starting with ERROR:
-    for line in log_text.splitlines():
-        clean_line = line.strip()
-        if clean_line.upper().startswith("ERROR:") and clean_line not in errors:
-            errors.append(clean_line)
+    # Normalize newlines and split
+    log_lines = log_text.splitlines()
 
-    # Catch final Jenkins build status if nothing else
+    # Regex patterns for common Jenkins/Java/Python build errors
+    patterns = [
+        r"\bERROR\b",
+        r"\bFAILURE\b",
+        r"\bWARNING\b",
+        r"\bEXCEPTION\b",
+        r"\bTRACEBACK\b",
+        r"^\s*at\s+.+",   # Java stack trace
+        r"^ERROR:.*",     # Jenkins error lines
+        r"^\[ERROR\].*",  # Maven/Gradle
+        r"^\[WARNING\].*"
+    ]
+
+    combined = re.compile("|".join(patterns), re.IGNORECASE)
+
+    for line in log_lines:
+        if combined.search(line):
+            errors.add(line.strip())
+
+    # Special case: Jenkins build result
     if "FINISHED: FAILURE" in log_text.upper() and not errors:
-        errors.append("Build failed with unknown error. Check Jenkins console for details.")
+        errors.add("Build failed with unknown error. Check Jenkins console for details.")
 
-    # Fallback: last N lines if no errors found
+    # Fallback if still nothing
     if not errors:
-        log_lines = log_text.splitlines()
-        errors = log_lines[-fallback_lines:]
+        return log_lines[-fallback_lines:]
 
-    return errors
+    return list(errors)
+
 
 
 
@@ -175,7 +183,7 @@ def run_streamlit():
 
 # --- Entry Point ---
 if __name__ == "__main__":
-    mode = os.getenv("MODE", "cli")  # default = cli (Jenkins), set MODE=web for Streamlit
+    mode = os.getenv("MODE", "web")  # default = cli (Jenkins), set MODE=web for Streamlit
     if mode == "web":
         run_streamlit()
     else:
