@@ -120,11 +120,11 @@ def store_solution_in_pinecone(error_block, solution):
     Stores the error and its solution in Pinecone.
     If the error already exists, it updates the solution.
     """
-    item_id = hashlib.md5(error_block.encode("utf-8")).hexdigest()
+    item_id = hashlib.md5(error_block.encode("utf-8")).hexdigest() # Unique ID 
     embedding = embed_query(error_block)
 
     index.upsert(
-        items=[
+        vectors=[
             {
                 "id": item_id,
                 "values": embedding,
@@ -152,7 +152,7 @@ def run_cli():
     error_block = "\n".join(extracted)
     print("Extracted Errors:\n", error_block, flush=True)
 
-    # Search Pinecone for similar errors
+    # Search Pinecone 
     matches = retrieve_solution(error_block)
 
     if matches:
@@ -164,7 +164,7 @@ def run_cli():
         solution = generate_solution_gemini(error_block)
         print("\nGemini Suggested Fix:\n", solution, flush=True)
 
-        # Store in Pinecone using the new function
+        # Store in db
         store_solution_in_pinecone(error_block, solution)
 
     sys.stdout.flush()
