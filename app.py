@@ -202,19 +202,19 @@ def run_cli():
     error_block = "\n".join(extracted)
     summarized_errors = summarize_errors_with_gemini(error_block)
 
-    print("📋 Summarized Errors:\n", summarized_errors, flush=True)
+    print(" Summarized Errors:\n", summarized_errors, flush=True)
 
     matches = retrieve_solution(summarized_errors, error_block)
 
     if matches:
-        print("\n✅ Found similar solution(s) in Pinecone DB:", flush=True)
+        print("\n Found similar solution(s) in Pinecone DB:", flush=True)
         for match in matches:
             print(f"\n--- Errors (Score: {match['score']:.3f}) ---\n{match['errors']}", flush=True)
             print(f"\n--- Steps ---\n{match['steps']}", flush=True)
             if os.getenv("VERBOSE", "false").lower() == "true":
                 print("\n--- More Details ---\n", match["details"], flush=True)
     else:
-        print("\n🤖 No solution found in Pinecone. Generating with Gemini...", flush=True)
+        print("\n No solution found in Pinecone. Generating with Gemini...", flush=True)
         solution = generate_solution_gemini(summarized_errors)
 
         print("\n--- Steps ---\n", solution["steps"], flush=True)
