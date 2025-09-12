@@ -38,7 +38,6 @@ if INDEX_NAME not in [idx.name for idx in pc.list_indexes()]:
 
 index = pc.Index(INDEX_NAME)
 
-
 # --- Fetch Jenkins console output ---
 def get_console_output():
     url = f"{jenkins_url}/job/{job_name}/lastBuild/consoleText"
@@ -48,11 +47,14 @@ def get_console_output():
     else:
         return f"Failed to fetch logs: {response.status_code}"
 
-
 # --- Extract Errors ---
 def extract_errors(log_text, fallback_lines=20):
-    errors = set()
+    """
+    Extract Jenkins errors as blocks of consecutive error lines.
+    """
     log_lines = log_text.splitlines()
+    error_blocks = []
+    current_block = []
 
     patterns = [
         r"\bERROR\b",
@@ -60,24 +62,31 @@ def extract_errors(log_text, fallback_lines=20):
         r"\bWARNING\b",
         r"\bEXCEPTION\b",
         r"\bTRACEBACK\b",
-        r"^\s*at\s+.+",   # Java stack trace
-        r"^ERROR:.*",     # Jenkins error lines
-        r"^\[ERROR\].*",  # Maven/Gradle
+        r"^\s*at\s+.+",    # Java stack trace
+        r"^ERROR:.*",      # Jenkins error lines
+        r"^\[ERROR\].*",   # Maven/Gradle
         r"^\[WARNING\].*"
     ]
     combined = re.compile("|".join(patterns), re.IGNORECASE)
 
     for line in log_lines:
         if combined.search(line):
-            errors.add(line.strip())
+            current_block.append(line.strip())
+        else:
+            if current_block:
+                # End of a block
+                error_blocks.append("\n".join(current_block))
+                current_block = []
 
-    if "FINISHED: FAILURE" in log_text.upper() and not errors:
-        errors.add("Build failed with unknown error. Check Jenkins console for details.")
+    # Add last block if exists
+    if current_block:
+        error_blocks.append("\n".join(current_block))
 
-    if not errors:
-        return log_lines[-fallback_lines:]
+    # If no errors found but build failed, fallback to last few lines
+    if not error_blocks and "FINISHED: FAILURE" in log_text.upper():
+        error_blocks.append("\n".join(log_lines[-fallback_lines:]))
 
-    return list(errors)
+    return error_blocks
 
 
 # --- Embedding + Retrieval ---
@@ -85,26 +94,7 @@ def embed_query(query):
     response = genai.embed_content(model="models/gemini-embedding-001", content=query)
     return response["embedding"] if isinstance(response, dict) else response
 
-
-def retrieve_solution(error_block, summarized_error, threshold=0.7, top_k=3):
-    # First try with summarized error
-    query_vector = embed_query(summarized_error)
-    results = index.query(vector=query_vector, top_k=top_k, include_metadata=True)
-
-    matches = [
-        {
-            "errors": match.metadata.get("errors", ""),
-            "steps": match.metadata.get("steps", ""),
-            "details": match.metadata.get("details", ""),
-            "score": match.score
-        }
-        for match in results.matches if match.score >= threshold
-    ]
-
-    if matches:
-        return matches
-
-    # Fallback → try with raw error block
+def retrieve_solution(error_block, threshold=0.7, top_k=3):
     query_vector = embed_query(error_block)
     results = index.query(vector=query_vector, top_k=top_k, include_metadata=True)
 
@@ -120,9 +110,7 @@ def retrieve_solution(error_block, summarized_error, threshold=0.7, top_k=3):
 
     return matches
 
-
-
-# --- Summarize Errors ---
+# --- Summarize Errors (for display only) ---
 def summarize_errors_with_gemini(error_block):
     model = genai.GenerativeModel("gemini-2.5-flash")
     prompt = f"""
@@ -133,7 +121,6 @@ def summarize_errors_with_gemini(error_block):
     """
     response = model.generate_content(prompt)
     return response.text.strip()
-
 
 # --- Generate Gemini Solution ---
 def generate_solution_gemini(error_message):
@@ -163,11 +150,10 @@ def generate_solution_gemini(error_message):
 
     return {"steps": steps, "details": details}
 
-
 # --- Store in Pinecone ---
-def store_solution_in_pinecone(summary, solution):
-    item_id = hashlib.md5(summary.encode("utf-8")).hexdigest()
-    embedding = embed_query(summary)
+def store_solution_in_pinecone(raw_error, solution):
+    item_id = hashlib.md5(raw_error.encode("utf-8")).hexdigest()
+    embedding = embed_query(raw_error)
 
     index.upsert(
         vectors=[
@@ -175,15 +161,14 @@ def store_solution_in_pinecone(summary, solution):
                 "id": item_id,
                 "values": embedding,
                 "metadata": {
-                    "errors": summary,
+                    "errors": raw_error,
                     "steps": solution["steps"],
                     "details": solution["details"]
                 },
             }
         ]
     )
-    print(f"\n✅ Solution saved/updated in Pinecone with ID {item_id}.", flush=True)
-
+    print(f"\n Solution saved/updated in Pinecone with ID {item_id}.", flush=True)
 
 # --- CLI Mode ---
 def run_cli():
@@ -200,31 +185,31 @@ def run_cli():
         return
 
     error_block = "\n".join(extracted)
-    summarized_errors = summarize_errors_with_gemini(error_block)
 
+    # Summarize only for display
+    summarized_errors = summarize_errors_with_gemini(error_block)
     print(" Summarized Errors:\n", summarized_errors, flush=True)
 
-    matches = retrieve_solution(summarized_errors, error_block)
+    matches = retrieve_solution(error_block)
 
     if matches:
         print("\n Found similar solution(s) in Pinecone DB:", flush=True)
         for match in matches:
-            print(f"\n--- Errors (Score: {match['score']:.3f}) ---\n{match['errors']}", flush=True)
+            print(f"\n--- Raw Error (Score: {match['score']:.3f}) ---\n{match['errors']}", flush=True)
             print(f"\n--- Steps ---\n{match['steps']}", flush=True)
             if os.getenv("VERBOSE", "false").lower() == "true":
                 print("\n--- More Details ---\n", match["details"], flush=True)
     else:
         print("\n No solution found in Pinecone. Generating with Gemini...", flush=True)
-        solution = generate_solution_gemini(summarized_errors)
+        solution = generate_solution_gemini(error_block)
 
         print("\n--- Steps ---\n", solution["steps"], flush=True)
         if os.getenv("VERBOSE", "false").lower() == "true":
             print("\n--- More Details ---\n", solution["details"], flush=True)
 
-        store_solution_in_pinecone(summarized_errors, solution)
+        store_solution_in_pinecone(error_block, solution)
 
     sys.stdout.flush()
-
 
 # --- Web Mode (Streamlit UI) ---
 def run_streamlit():
@@ -242,19 +227,20 @@ def run_streamlit():
             return
 
         error_block = "\n".join(extracted)
-        summarized_errors = summarize_errors_with_gemini(error_block)
 
+        # Summarize for display
+        summarized_errors = summarize_errors_with_gemini(error_block)
         st.subheader("📋 Summarized Errors:")
         st.markdown(summarized_errors)
 
         st.subheader("🔍 Resolving...")
-        matches = retrieve_solution(summarized_errors, error_block)
+        matches = retrieve_solution(error_block)
 
         if matches:
             st.success("✅ Found similar solution(s) in Pinecone DB:")
             for match in matches:
                 with st.expander(f"Solution (Score: {match['score']:.3f}) - Click to expand"):
-                    st.markdown("### Errors")
+                    st.markdown("### Raw Error")
                     st.markdown(match["errors"])
                     st.markdown("### Steps")
                     st.markdown(match["steps"])
@@ -263,7 +249,7 @@ def run_streamlit():
                         st.markdown(match["details"])
         else:
             st.warning("🤖 No similar solution found. Generating via Gemini...")
-            solution = generate_solution_gemini(summarized_errors)
+            solution = generate_solution_gemini(error_block)
 
             st.subheader("🔧 Gemini Suggested Fix (Steps):")
             st.markdown(solution["steps"])
@@ -271,9 +257,8 @@ def run_streamlit():
             with st.expander("Show More (Detailed Explanation)"):
                 st.markdown(solution["details"])
 
-            store_solution_in_pinecone(summarized_errors, solution)
+            store_solution_in_pinecone(error_block, solution)
             st.success("✅ Solution saved/updated in Pinecone for future use.")
-
 
 # --- Entry Point ---
 if __name__ == "__main__":
