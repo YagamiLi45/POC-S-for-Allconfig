@@ -94,7 +94,7 @@ def embed_query(query):
     response = genai.embed_content(model="models/gemini-embedding-001", content=query)
     return response["embedding"] if isinstance(response, dict) else response
 
-def retrieve_solution(error_block, threshold=0.7, top_k=3):
+def retrieve_solution(error_block, threshold=0.92, top_k=3):
     query_vector = embed_query(error_block)
     results = index.query(vector=query_vector, top_k=top_k, include_metadata=True)
 
@@ -240,8 +240,8 @@ def run_streamlit():
             st.success("✅ Found similar solution(s) in Pinecone DB:")
             for match in matches:
                 with st.expander(f"Solution (Score: {match['score']:.3f}) - Click to expand"):
-                    st.markdown("### Raw Error")
-                    st.markdown(match["errors"])
+                    # st.markdown("### Raw Error")
+                    # st.markdown(match["errors"])
                     st.markdown("### Steps")
                     st.markdown(match["steps"])
                     if match["details"]:
