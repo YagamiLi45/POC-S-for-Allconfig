@@ -4,7 +4,7 @@
 
 Goal: Automatically fetch, summarize, and resolve Jenkins build errors using AI.
 
-##🤖 Project Description 
+##📄 Project Description 
 ---------------------------------------------------------------------------------------
 
 Jenkins Error Resolver is a Python-based tool designed to automatically fetch Jenkins build logs, 
@@ -44,13 +44,21 @@ With this tool, Jenkins build troubleshooting becomes faster, easier, and more c
 5)Web Mode (Streamlit): Interactive UI to explore and resolve errors
 
 ##⚙️ Configuration
--------------------------------------------------------------------------------
+----------------------------------------------------------------------------------------
 You can set the API Keys in Jenkins Credentials
 
 For Web UI set in the env file
 
+##🤖 How to run the Project
+----------------------------------------------------------------------------------------
+1)Create Virtual Environment
+
+2)Install the requirements
+
+3)Run Streamlit Application with cmd streamlit run app.py
+
 ##✅ Optional:
--------------------------------------------------------------------------------------
+----------------------------------------------------------------------------------------
 Mode = CLI
 
 Mode = Web
